@@ -153,12 +153,60 @@ var bufPool = sync.Pool{
 	},
 }
 
+var bufPoolChan = make(chan bool, 100)
+
+func getBuf() *bytes.Buffer {
+	bufPoolChan <- true
+	b := bufPool.Get().(*bytes.Buffer)
+	b.Reset()
+	return b
+}
+
+func putBuf(b *bytes.Buffer) {
+	bufPool.Put(b)
+	<-bufPoolChan
+}
+
+var littleBufPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 300))
+	},
+}
+
+var littleBufPoolChan = make(chan bool, 1000)
+
+func getLittleBuf() *bytes.Buffer {
+	littleBufPoolChan <- true
+	b := littleBufPool.Get().(*bytes.Buffer)
+	b.Reset()
+	return b
+}
+
+func putLittleBuf(b *bytes.Buffer) {
+	littleBufPool.Put(b)
+	<-littleBufPoolChan
+}
+
+func littleCmdType(t api.BaseCommand_Type) bool {
+	switch t {
+	case api.BaseCommand_PING, api.BaseCommand_PONG:
+		return true
+	default:
+		return false
+	}
+}
+
 // writeFrame encodes the given frame and writes
 // it to the wire in a thread-safe manner.
 func (c *Conn) writeFrame(f *frame.Frame) error {
-	b := bufPool.Get().(*bytes.Buffer)
-	defer bufPool.Put(b)
-	b.Reset()
+	var b *bytes.Buffer
+	if littleCmdType(f.BaseCmd.GetType()) {
+		b = getLittleBuf()
+		defer putLittleBuf(b)
+	} else {
+		b = getBuf()
+		defer putBuf(b)
+	}
 
 	if err := f.Encode(b); err != nil {
 		return err
