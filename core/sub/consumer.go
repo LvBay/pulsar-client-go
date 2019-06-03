@@ -66,6 +66,8 @@ type Consumer struct {
 	Closedc      chan struct{}
 	IsEndOfTopic bool
 	EndOfTopicc  chan struct{}
+
+	Unactive bool // Unactive will change when you receive a msg of ActiveConsumerChange
 }
 
 // Messages returns a read-only channel of messages

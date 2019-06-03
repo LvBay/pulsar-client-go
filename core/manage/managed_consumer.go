@@ -117,6 +117,11 @@ type ManagedConsumer struct {
 	waitc    chan struct{} // if consumer is nil, this will unblock when it's been re-set
 }
 
+// Unactive returns consumer's Unactive
+func (m *ManagedConsumer) Unactive() bool {
+	return m.consumer.Unactive
+}
+
 // Ack acquires a consumer and Sends an ACK message for the given message.
 func (m *ManagedConsumer) Ack(ctx context.Context, msg msg.Message) error {
 	for {

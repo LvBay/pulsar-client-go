@@ -14,12 +14,10 @@
 package sub
 
 import (
-	"log"
 	"sync"
 
 	"github.com/wolfstudy/pulsar-client-go/core/frame"
 	"github.com/wolfstudy/pulsar-client-go/core/pub"
-	"github.com/wolfstudy/pulsar-client-go/pkg/api"
 	"github.com/wolfstudy/pulsar-client-go/utils"
 )
 
@@ -118,6 +116,17 @@ func (s *Subscriptions) HandleCloseProducer(producerID uint64, f frame.Frame) er
 }
 
 func (s *Subscriptions) HandleActiveConsumerChange(consumerID uint64, f frame.Frame) error {
-	log.Println("HandleActiveConsumerChange", api.BaseCommand_ACTIVE_CONSUMER_CHANGE, f.BaseCmd)
+	s.Cmu.RLock()
+	c, ok := s.Consumers[consumerID]
+	s.Cmu.RUnlock()
+	isActive := f.BaseCmd.GetActiveConsumerChange().GetIsActive()
+	if ok {
+		if !isActive {
+			c.Unactive = true
+		} else {
+			c.Unactive = false
+		}
+	}
+
 	return nil
 }
