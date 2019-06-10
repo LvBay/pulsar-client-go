@@ -149,11 +149,16 @@ func (c *Conn) SendPayloadCmd(cmd api.BaseCommand, metadata api.MessageMetadata,
 
 var bufPool = sync.Pool{
 	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, frame.MaxFrameSize))
+		return bytes.NewBuffer(make([]byte, 0, bufSize))
 	},
 }
 
-var bufPoolChan = make(chan bool, 100)
+const bufSize = 5 * 1024
+const bufLimit = 50
+const littleBufSize = 500
+const littleBufLimit = 1000
+
+var bufPoolChan = make(chan bool, bufLimit)
 
 func getBuf() *bytes.Buffer {
 	bufPoolChan <- true
@@ -169,11 +174,11 @@ func putBuf(b *bytes.Buffer) {
 
 var littleBufPool = sync.Pool{
 	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, 300))
+		return bytes.NewBuffer(make([]byte, 0, littleBufSize))
 	},
 }
 
-var littleBufPoolChan = make(chan bool, 1000)
+var littleBufPoolChan = make(chan bool, littleBufLimit)
 
 func getLittleBuf() *bytes.Buffer {
 	littleBufPoolChan <- true
@@ -189,7 +194,9 @@ func putLittleBuf(b *bytes.Buffer) {
 
 func littleCmdType(t api.BaseCommand_Type) bool {
 	switch t {
-	case api.BaseCommand_PING, api.BaseCommand_PONG:
+	case api.BaseCommand_PING, api.BaseCommand_PONG, api.BaseCommand_ACK,
+		api.BaseCommand_CONNECT, api.BaseCommand_FLOW, api.BaseCommand_SUBSCRIBE,
+		api.BaseCommand_LOOKUP:
 		return true
 	default:
 		return false
