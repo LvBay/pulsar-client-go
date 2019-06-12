@@ -92,11 +92,12 @@ func NewManagedConsumer(cp *ClientPool, cfg ConsumerConfig) *ManagedConsumer {
 	cfg = cfg.SetDefaults()
 
 	m := ManagedConsumer{
-		clientPool: cp,
-		cfg:        cfg,
-		asyncErrs:  utils.AsyncErrors(cfg.Errs),
-		queue:      make(chan msg.Message, cfg.QueueSize),
-		waitc:      make(chan struct{}),
+		clientPool:     cp,
+		cfg:            cfg,
+		asyncErrs:      utils.AsyncErrors(cfg.Errs),
+		queue:          make(chan msg.Message, cfg.QueueSize),
+		waitc:          make(chan struct{}),
+		stopManageChan: make(chan struct{}),
 	}
 
 	go m.manage()
@@ -112,9 +113,10 @@ type ManagedConsumer struct {
 
 	queue chan msg.Message
 
-	mu       sync.RWMutex  // protects following
-	consumer *sub.Consumer // either consumer is nil and wait isn't or vice versa
-	waitc    chan struct{} // if consumer is nil, this will unblock when it's been re-set
+	mu             sync.RWMutex  // protects following
+	consumer       *sub.Consumer // either consumer is nil and wait isn't or vice versa
+	waitc          chan struct{} // if consumer is nil, this will unblock when it's been re-set
+	stopManageChan chan struct{}
 }
 
 // Unactive returns consumer's Unactive
@@ -375,6 +377,8 @@ func (m *ManagedConsumer) manage() {
 		case <-consumer.ConnClosed():
 			// reconnect
 
+		case <-m.stopManageChan:
+			return
 		}
 
 		m.unset()
@@ -462,6 +466,24 @@ func (m *ManagedConsumer) Monitor() func() {
 
 // Close consumer
 func (m *ManagedConsumer) Close(ctx context.Context) error {
-	defer m.Monitor()()
-	return m.consumer.Close(ctx)
+	for {
+		m.mu.RLock()
+		consumer := m.consumer
+		wait := m.waitc
+		m.mu.RUnlock()
+
+		if consumer == nil {
+			select {
+			case <-wait:
+				// a new consumer was established.
+				// Re-enter read-lock to obtain it.
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		// stop manage()
+		close(m.stopManageChan)
+		return m.consumer.Close(ctx)
+	}
 }
