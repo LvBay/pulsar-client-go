@@ -63,7 +63,13 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	handler := func(f frame.Frame) {
 		// All message types can be handled in
 		// parallel, since their ordering should not matter
-		go c.handleFrame(f)
+		msgType := f.BaseCmd.GetType()
+		if msgType == api.BaseCommand_MESSAGE {
+			c.handleFrame(f)
+		} else {
+			go c.handleFrame(f)
+		}
+		// go c.handleFrame(f)
 	}
 
 	go func() {
