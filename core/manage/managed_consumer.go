@@ -124,6 +124,26 @@ func (m *ManagedConsumer) Unactive() bool {
 	return m.consumer.Unactive
 }
 
+// ConsumerID returns current consumer's id
+func (m *ManagedConsumer) ConsumerID() uint64 {
+	for {
+		m.mu.RLock()
+		consumer := m.consumer
+		wait := m.waitc
+		m.mu.RUnlock()
+
+		if consumer == nil {
+			select {
+			case <-wait:
+				// a new consumer was established.
+				// Re-enter read-lock to obtain it.
+				continue
+			}
+		}
+		return consumer.ConsumerID
+	}
+}
+
 // Ack acquires a consumer and Sends an ACK message for the given message.
 func (m *ManagedConsumer) Ack(ctx context.Context, msg msg.Message) error {
 	for {
