@@ -368,7 +368,7 @@ func (m *ManagedConsumer) reconnect(initial bool) *sub.Consumer {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), m.cfg.NewConsumerTimeout)
-		if reconnectFlag {
+		if !reconnectFlag {
 			log.Printf("reconnecting consumer topic:%v\n", m.cfg.Topic)
 		}
 		newConsumer, err := m.newConsumer(ctx)
@@ -377,7 +377,7 @@ func (m *ManagedConsumer) reconnect(initial bool) *sub.Consumer {
 			m.asyncErrs.Send(err)
 			continue
 		}
-		if reconnectFlag {
+		if !reconnectFlag {
 			log.Printf("reconnect consumer sucess, topic:%v\n", m.cfg.Topic)
 		}
 
