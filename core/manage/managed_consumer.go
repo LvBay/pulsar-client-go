@@ -16,6 +16,7 @@ package manage
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -351,6 +352,7 @@ func (m *ManagedConsumer) newConsumer(ctx context.Context) (*sub.Consumer, error
 // reconnect blocks while a new Consumer is created.
 func (m *ManagedConsumer) reconnect(initial bool) *sub.Consumer {
 	retryDelay := m.cfg.InitialReconnectDelay
+	reconnectFlag := initial
 
 	for attempt := 1; ; attempt++ {
 		if initial {
@@ -366,11 +368,17 @@ func (m *ManagedConsumer) reconnect(initial bool) *sub.Consumer {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), m.cfg.NewConsumerTimeout)
+		if reconnectFlag {
+			log.Printf("reconnecting consumer topic:%v\n", m.cfg.Topic)
+		}
 		newConsumer, err := m.newConsumer(ctx)
 		cancel()
 		if err != nil {
 			m.asyncErrs.Send(err)
 			continue
+		}
+		if reconnectFlag {
+			log.Printf("reconnect consumer sucess, topic:%v\n", m.cfg.Topic)
 		}
 
 		return newConsumer
