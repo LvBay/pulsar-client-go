@@ -127,7 +127,8 @@ func (m *ManagedConsumer) Unactive() bool {
 
 // ConsumerID returns current consumer's id
 func (m *ManagedConsumer) ConsumerID() uint64 {
-	for {
+	retry := 10
+	for i := 0; i < retry; i++ {
 		m.mu.RLock()
 		consumer := m.consumer
 		wait := m.waitc
@@ -143,6 +144,8 @@ func (m *ManagedConsumer) ConsumerID() uint64 {
 		}
 		return consumer.ConsumerID
 	}
+	log.Printf("get ConsumerID faild(retry time:%d), topic:%s\n", retry, m.cfg.Topic)
+	return 0
 }
 
 // Ack acquires a consumer and Sends an ACK message for the given message.
@@ -230,6 +233,7 @@ func (m *ManagedConsumer) ReceiveAsync(ctx context.Context, msgs chan<- msg.Mess
 			}
 		}
 	}
+	tk := time.NewTicker(10 * time.Second)
 
 CONSUMER:
 	for {
@@ -266,6 +270,11 @@ CONSUMER:
 
 		for {
 			select {
+			case <-tk.C:
+				if err := consumer.Flow(highwater); err != nil {
+					m.asyncErrs.Send(err)
+					continue CONSUMER
+				}
 			case msg := <-m.queue:
 				msgs <- msg
 
